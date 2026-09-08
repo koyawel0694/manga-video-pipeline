@@ -1,25 +1,18 @@
 #!/usr/bin/env python3
 """
 build_flow_production_master.py — Master Builder for Google Flow Automator Max (TXT & CSV).
+HARDENED VERSION: 100% Policy-Safe (Zero Reputational Risk / Zero Fake News Triggers).
 
-Generates the exact, full 10-second timestamped walkthroughs for all 6 blocks of Chapter 1.
-Every block contains:
-- Full @mentions (@Kang Jin-Hoo, @Oh Taek-Gyu, etc.)
-- 2D Korean webtoon manhwa anime animation directive
-- Full-bleed 9:16 vertical instruction (no comic borders, no split screen, no collage)
-- Complete timestamp breakdown: 0s-1.5s, 1.5s-3s, 3s-4.5s, 4.5s-6s, 6s-8s, 8s-10s
-- Per-beat visual action, camera kinematics, lighting, English voiceover dialogue, SFX
-- Explicit END ON A COMPLETE FREEZE FRAME directive at 10s
-
-Outputs:
-1. flow_6_continuous_blocks.txt — 6 blocks with full timestamps separated by @@@NEXT@@@
-2. flow_all_36_shots.txt — 36 individual frame prompts separated by @@@NEXT@@@
-3. e01.csv — Full Episode 1 Flow Automator Max V3 CSV
-4. block1_prompts.txt .. block6_prompts.txt — Per-block TXT files
+Policy Fix Applied for Google Flow / Veo Filter:
+- Root Cause of Error: "Unable to generate videos that might cause reputational risk or misrepresent current events"
+  Triggered by: simulated breaking TV news broadcast of corporate crimes ("CEO flees country", "police cars outside headquarters", "crypto exchange insolvency").
+- Solution:
+  1. Removed all simulated breaking news TV broadcasts, police raids, and real-world-style financial fraud phrasing.
+  2. Replaced with stylized in-universe digital network freeze ('NETWORK OFFLINE / SERVERS UNREACHABLE') and fast-scrolling community forum reaction bubbles.
+  3. Centered drama strictly on personal character reactions: Taek-Gyu's trembling awe and Jin-Hoo's supernatural golden eye prophecy.
 """
 
 import csv
-import json
 from pathlib import Path
 
 BASE_DIR = Path("/home/john/manga-reviews/output/the-investor-who-sees-the-future/ch1/flow_queue")
@@ -325,11 +318,11 @@ BLOCKS = [
             },
             {
                 "time": "1.5s-3s",
-                "label": "THE BURNING LETTERS",
-                "action": "Across the fiery smoke within Jin-Hoo\'s vision, burning crimson embers ignite in midair spelling out \'MOUNTAINHILL EXCHANGE\' followed by a shattered padlock and glowing words \'CRITICAL FAILURE / BANKRUPTCY\'.",
-                "camera": "Tracking shot sweeping across burning molten typography in midair, 50mm lens",
+                "label": "THE BURNING OMEN",
+                "action": "Across the fiery smoke within Jin-Hoo\'s trance, burning crimson embers ignite in midair forming glowing abstract geometric symbols of a shattered exchange vault and the mystical warning words: 'SYSTEM COLLAPSE / IMMINENT DOWNTIME'.",
+                "camera": "Tracking shot sweeping across burning molten symbols in midair, 50mm lens",
                 "lighting": "Intense crimson backlighting, floating glowing fire embers",
-                "vo": '(Spirit Shaman): "(haunting, reverberating spectral warning) The corporate tower you place your trust in... will crumble into ash before sundown."',
+                "vo": '(Spirit Shaman): "(haunting, reverberating spectral warning) The fortress you placed your faith in... will dissolve into shadows before the sun sets."',
                 "sfx": "Searing metal hiss, explosive ember sparks, ominous low sub-bass drone",
             },
             {
@@ -338,7 +331,7 @@ BLOCKS = [
                 "action": "The vision snaps violently back to reality. Jin-Hoo stumbles forward, panting heavily with sweat dripping down his face, grabbing Taek-Gyu\'s hoodie collar with fierce life-or-death intensity.",
                 "camera": "Sudden crash cut to medium tight profile, intense handheld shake, 35mm lens",
                 "lighting": "Harsh apartment daylight highlighting Jin-Hoo\'s pale, desperate face",
-                "vo": '(Kang Jin-Hoo): "(panting, desperate grip) Taek-Gyu! Which exchange holds our cryptocurrency assets right now?! Tell me!"',
+                "vo": '(Kang Jin-Hoo): "(panting, desperate grip) Taek-Gyu! Which digital platform holds our assets right now?! Tell me!"',
                 "sfx": "Heavy panting, violent fabric grab rustle, sharp intake of breath",
             },
             {
@@ -347,7 +340,7 @@ BLOCKS = [
                 "action": "Taek-Gyu blinks in sheer terror at Jin-Hoo\'s ferocious expression, stammering with wide eyes as he holds his phone defensively against his chest.",
                 "camera": "Tight close-up of Taek-Gyu\'s sweating face, 50mm lens",
                 "lighting": "Natural daylight reflecting in his fogged glasses",
-                "vo": '(Oh Taek-Gyu): "(stammering, confused, scared) M-Mountainhill Exchange... the biggest, most trusted platform in Korea. Why, Jin-Hoo?!"',
+                "vo": '(Oh Taek-Gyu): "(stammering, confused, scared) Mountainhill... the largest, most secure platform in the region. Why, Jin-Hoo?!"',
                 "sfx": "Subtle clock ticking underneath like a countdown timer",
             },
             {
@@ -356,16 +349,16 @@ BLOCKS = [
                 "action": "Jin-Hoo slams his palm flat onto the wooden coffee table, towering over Taek-Gyu with blazing authority, his right eye reflecting a lingering phantom golden spark.",
                 "camera": "Low-angle dramatic tilt up on Jin-Hoo commanding the room, 35mm lens",
                 "lighting": "High-contrast shadow cutting across Jin-Hoo\'s determined jawline",
-                "vo": '(Kang Jin-Hoo): "(authoritative, commanding roar) Liquidate everything immediately! Sell every single Bantcoin before noon!"',
+                "vo": '(Kang Jin-Hoo): "(authoritative, commanding roar) Liquidate everything immediately! Withdraw every single coin before noon!"',
                 "sfx": "Heavy palm slam on wooden table, deep bass resonance",
             },
             {
                 "time": "8s-10s",
                 "label": "THE IMPOSSIBLE DEMAND — END ON FREEZE FRAME",
-                "action": "Taek-Gyu stares in agonizing hesitation with his thumb trembling millimeters above the sell button on screen, while Jin-Hoo glares down with deadly certainty, locking into a frozen stand-off.",
+                "action": "Taek-Gyu stares in agonizing hesitation with his thumb trembling millimeters above the confirm button on screen, while Jin-Hoo glares down with deadly certainty, locking into a frozen stand-off.",
                 "camera": "Split-focus two-shot: trembling thumb over screen in foreground, Jin-Hoo\'s cold face in background",
                 "lighting": "Dramatic split lighting, tense shadows across the table",
-                "vo": '(Kang Jin-Hoo): "(cold, deadly serious whisper) Put your trust in me... wait another hour and we lose everything we just found." · END ON COMPLETE FREEZE FRAME.',
+                "vo": '(Kang Jin-Hoo): "(cold, deadly serious whisper) Put your trust in me... wait another hour and everything we found is gone." · END ON COMPLETE FREEZE FRAME.',
                 "sfx": "Ticking clock abruptly stops, heavy dark cello sustain into silence",
             },
         ],
@@ -375,48 +368,48 @@ BLOCKS = [
         "title": "The Future Is Real",
         "cast_mentions": ["@Kang Jin-Hoo", "@Oh Taek-Gyu"],
         "description": "VIDEO: E01 B6 — The Future Is Real",
-        "voice_ref": "English news anchor and shocked friends",
+        "voice_ref": "Stunned young men witnessing prophetic fulfillment",
         "beats": [
             {
                 "time": "0s-1.5s",
-                "label": "THE SELL ORDER",
-                "action": "Macro close-up of Taek-Gyu\'s sweating thumb slamming down onto a glowing blue confirmation button on the smartphone screen. A clean green confirmation banner flashes: \'SELL ORDER EXECUTED — CASH TRANSFERRED\'.",
+                "label": "THE CONFIRMATION",
+                "action": "Macro close-up of Taek-Gyu\'s sweating thumb pressing firmly onto a glowing blue confirmation button on the smartphone screen. A clean green notification banner appears: \'WITHDRAWAL COMPLETE — FULL BALANCE TRANSFERRED TO BANK\'.",
                 "camera": "Macro close-up on glass screen tap with rapid smooth pull-back, 100mm lens",
                 "lighting": "Bright green screen flash illuminating Taek-Gyu\'s trembling fingers",
-                "vo": '(Oh Taek-Gyu): "(gasping, nervous exhales) It\'s done! The sell order cleared and the cash hit our bank... but Jin-Hoo, are you positive about this?"',
+                "vo": '(Oh Taek-Gyu): "(gasping, nervous exhales) It\'s through! The full cash balance just cleared into our personal bank accounts... but Jin-Hoo, are you positive about this?"',
                 "sfx": "Digital transaction confirmation chime, heavy nervous exhale",
             },
             {
                 "time": "1.5s-3s",
-                "label": "THE SERVER CRASH",
-                "action": "Thirty seconds later: the phone screen flickers violently with red error bars, flashing an abrupt error pop-up: \'502 BAD GATEWAY — MOUNTAINHILL SERVERS UNREACHABLE\'. Taek-Gyu stares with horror.",
-                "camera": "Extreme macro zoom on phone screen displaying red flashing error banner, 85mm lens",
+                "label": "THE SYSTEM BLACKOUT",
+                "action": "Suddenly, thirty seconds later: the phone screen displays a harsh red network disconnect symbol with an abrupt error code: \'502 GATEWAY ERROR — SERVER CLUSTER OFFLINE — ACCESS RESTRICTED\'. Taek-Gyu gasps in shock.",
+                "camera": "Extreme macro zoom on phone screen displaying red flashing error symbol, 85mm lens",
                 "lighting": "Pulsing crimson error glow washing across Taek-Gyu\'s horrified face",
-                "vo": '(Oh Taek-Gyu): "(voice trembling, eyes widening in panic) W-Wait... the app just crashed. 502 Bad Gateway?! Mountainhill\'s entire server network just went dead?!"',
+                "vo": '(Oh Taek-Gyu): "(voice trembling, eyes widening in panic) W-Wait... the entire network just went black! The whole platform servers completely shut down?!"',
                 "sfx": "Harsh digital error glitch buzz, rising alarm tone",
             },
             {
                 "time": "3s-4.5s",
-                "label": "THE NEWS BREAK",
-                "action": "Taek-Gyu frantically spins around to his laptop displaying a live news stream: a red breaking news banner scrolls across showing police cars outside Mountainhill headquarters: \'CEO FLEES COUNTRY — EXCHANGE SUSPENDED\'.",
-                "camera": "Fast whip pan from phone to flickering laptop screen, 35mm lens",
-                "lighting": "Flickering cool laptop screen glow in dark apartment",
-                "vo": '(News Anchor on Laptop): "(urgent breaking news report) Breaking news: South Korea\'s largest crypto exchange has abruptly collapsed amid allegations of massive insolvency and executive flight!"',
-                "sfx": "Urgent television breaking news siren fanfare, news anchor audio filter",
+                "label": "THE FORUM PANIC",
+                "action": "Taek-Gyu frantically spins around to his laptop where online community discussion boards scroll at dizzying speed with thousands of frantic red user alerts and exclamation icons as users report frozen accounts.",
+                "camera": "Fast whip pan from phone to chaotic scrolling laptop screen, 35mm lens",
+                "lighting": "Rapidly flickering laptop screen glow reflecting on Taek-Gyu\'s wide glasses",
+                "vo": '(Oh Taek-Gyu): "(frantic, reading rapid comments) Millions of users locked out... trading is halted indefinitely across the entire network!"',
+                "sfx": "Rapid cascade of digital ping notifications, low sub-bass rumble",
             },
             {
                 "time": "4.5s-6s",
-                "label": "THE REALIZATION",
-                "action": "Taek-Gyu slowly turns around from the laptop to face Jin-Hoo standing in the apartment center. Taek-Gyu\'s face is pale white, shaking uncontrollably in absolute reverence and terror.",
+                "label": "THE AWE OF PROPHECY",
+                "action": "Taek-Gyu slowly turns around from the laptop to face Jin-Hoo standing in the quiet apartment. Taek-Gyu\'s face is pale white, shaking uncontrollably in absolute reverence and terror, realizing his friend saw tomorrow.",
                 "camera": "Slow dramatic low-angle dolly push-in toward Jin-Hoo past Taek-Gyu\'s trembling shoulder, 50mm lens",
                 "lighting": "Rich natural chiaroscuro shadows cutting across the small room",
-                "vo": '(Oh Taek-Gyu): "(shaking uncontrollably, breathless awe) You foresaw it... you knew this collapse would happen before anyone else. Who on earth are you, Jin-Hoo?!"',
+                "vo": '(Oh Taek-Gyu): "(shaking uncontrollably, breathless awe) You foresaw it... you pulled us out minutes before total shutdown. Who on earth are you, Jin-Hoo?!"',
                 "sfx": "Deep haunting sub-bass swell, muffled ambient room tone",
             },
             {
                 "time": "6s-8s",
-                "label": "THE CONFESSION",
-                "action": "Close-up of Kang Jin-Hoo turning his head slowly toward his friend, his expression completely composed, serene, and terrifyingly calm under the morning sunbeam.",
+                "label": "THE QUIET CONFESSION",
+                "action": "Close-up of Kang Jin-Hoo turning his head slowly toward his friend, his expression completely composed, serene, and terrifyingly calm under the morning sunbeam cutting across the room.",
                 "camera": "Tight cinematic portrait push-in, 85mm prime lens with rich natural shadows",
                 "lighting": "Warm morning light illuminating one half of Jin-Hoo\'s face, deep shadow on the other",
                 "vo": '(Kang Jin-Hoo): "(calm, deep, prophetic whisper) I told you earlier, Taek-Gyu... this was never just a lucky guess."',
@@ -426,7 +419,7 @@ BLOCKS = [
                 "time": "8s-10s",
                 "label": "THE CLIFFHANGER — END ON FREEZE FRAME",
                 "action": "Jin-Hoo steps forward, his right eye igniting with a brilliant golden supernatural spark. He smiles with chilling supreme ambition directly into the camera, locking into a final heroic freeze frame.",
-                "camera": "Slow hero push-in directly into Jin-Hoo\'s golden gleaming eye, settling into locked hold",
+                "camera": "Slow hero push-in directly into Jin-Hoo\'s golden gleaming eye, settling into locked hold at 10s",
                 "lighting": "Golden mystical rim light igniting around his black hair, background fading to dark contrast",
                 "vo": '(Kang Jin-Hoo): "(cold, chilling, triumphant delivery) I see the future. And this is merely the opening move." · END ON COMPLETE FREEZE FRAME: Jin-Hoo locks his golden eye onto the lens, motionless.',
                 "sfx": "Massive cinematic bass drop, dramatic orchestral hit, sudden hard cut to silence",
@@ -488,7 +481,7 @@ def main():
     cont_txt_path = BASE_DIR / "flow_6_continuous_blocks.txt"
     with open(cont_txt_path, "w", encoding="utf-8") as f:
         f.write(DELIMITER.join(block_prompts) + "\n")
-    print(f"[OK] Master 10s Blocks TXT with Full Timestamps: {cont_txt_path}")
+    print(f"[OK] Hardened 10s Blocks TXT (Policy-Safe): {cont_txt_path}")
 
     # Save e01.csv
     e01_csv_path = BASE_DIR / "e01.csv"
@@ -497,7 +490,7 @@ def main():
         writer.writeheader()
         for r in episode_rows:
             writer.writerow(r)
-    print(f"[OK] e01.csv with Full Timestamps: {e01_csv_path}")
+    print(f"[OK] Hardened e01.csv: {e01_csv_path}")
 
     # Save flow_continuous_10s_queue.csv
     cont_csv_path = BASE_DIR / "flow_continuous_10s_queue.csv"
@@ -506,7 +499,7 @@ def main():
         writer.writeheader()
         for r in episode_rows:
             writer.writerow(r)
-    print(f"[OK] flow_continuous_10s_queue.csv updated: {cont_csv_path}")
+    print(f"[OK] Hardened flow_continuous_10s_queue.csv: {cont_csv_path}")
 
 
 if __name__ == "__main__":
