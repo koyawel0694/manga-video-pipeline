@@ -181,14 +181,14 @@ def compose(block_key, block, frames):
 
 def main():
     ap=argparse.ArgumentParser()
-    ap.add_argument('--block', choices=list(BLOCKS), default=None)
+    ap.add_argument('--block', choices=list(LAYOUT), default=None)
     ap.add_argument('--all', action='store_true')
     ap.add_argument('--compose-only', action='store_true')
     args=ap.parse_args()
     FRAME_DIR.mkdir(parents=True,exist_ok=True); SHEET_DIR.mkdir(parents=True,exist_ok=True)
-    keys=[args.block] if args.block else list(BLOCKS)
+    keys=[args.block] if args.block else list(LAYOUT)
     for key in keys:
-        block=BLOCKS[key]; frames=[]
+        block=LAYOUT[key]; frames=[]
         for i,spec in enumerate(block['frames']):
             out=FRAME_DIR/f'{key}_{i+1:02d}.png'
             if not args.compose_only or not out.exists():
