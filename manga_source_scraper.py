@@ -23,8 +23,14 @@ import time
 import re
 import argparse
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import urlparse, urljoin
 import requests
+
+try:
+    from bs4 import BeautifulSoup
+    HAS_BS4 = True
+except ImportError:
+    HAS_BS4 = False
 
 MANGADEX_API = "https://api.mangadex.org"
 HEADERS = {
@@ -163,6 +169,8 @@ def list_chapters(manga_id: str, language: str = "en") -> list[dict]:
         "includes[]": ["scanlation_group"],
     }
     resp = requests.get(f"{MANGADEX_API}/manga/{manga_id}/feed", params=params, headers=HEADERS, timeout=25)
+    if resp.status_code == 400:
+        return []
     resp.raise_for_status()
     raw_chapters = resp.json().get("data", [])
 
@@ -288,6 +296,139 @@ def download_chapter(chapter_info: dict, manga_meta: dict, output_dir: Path, max
     return ch_meta
 
 
+
+# ---------------------------------------------------------------------------
+# FALLBACK: Generic webtoon reader scraping (for titles not on MangaDex)
+# ---------------------------------------------------------------------------
+
+FALLBACK_READER_PATTERNS = [
+    # Sites following the Madara / ThemeMars WordPress reader layout with
+    # predictable URL shapes. {slug} = title slug, {num} = chapter number.
+    "https://theinvestorwhoseesthefuture.com/manga/{slug}-chapter-{num}/",
+    "https://manhwatop.com/manga/{slug}/chapter-{num}/",
+    "https://manhuatop.org/manhua/{slug}-top/chapter-{num}/",
+    "https://kingofshojo.com/{slug}-chapter-{num}/",
+]
+
+
+def slugify_for_readers(title: str) -> str:
+    """Convert a title into a reader-site slug."""
+    clean = re.sub(r"[^\w\s-]", "", title, flags=re.UNICODE).strip().lower()
+    return re.sub(r"[\s_]+", "-", clean)
+
+
+def fetch_reader_chapter_images(chapter_url: str) -> list[str]:
+    """Scrape page image URLs from a generic WordPress/Madara manga reader."""
+    if not HAS_BS4:
+        return []
+    r = requests.get(chapter_url, headers={**HEADERS, "Referer": chapter_url}, timeout=30)
+    if r.status_code != 200:
+        return []
+    soup = BeautifulSoup(r.text, "html.parser")
+    urls = []
+    seen = set()
+    for img in soup.select(".reading-content img, .entry-content img, .read-container img, .rdminimal img"):
+        src = img.get("src") or img.get("data-src") or ""
+        src = urljoin(chapter_url, src.strip())
+        if src.startswith("http") and re.search(r"\.(webp|jpg|jpeg|png)(\?|$)", src, re.I) and src not in seen:
+            seen.add(src)
+            urls.append(src)
+    return urls
+
+
+def download_generic_images(image_urls: list[str], images_dir: Path, referer: str) -> list[str]:
+    """Download a list of remote images into images_dir; returns saved paths."""
+    images_dir.mkdir(parents=True, exist_ok=True)
+    saved = []
+    for i, img_url in enumerate(image_urls, start=1):
+        ext = Path(urlparse(img_url).path).suffix or ".jpg"
+        out_file = images_dir / f"page_{i:03d}{ext}"
+        if out_file.exists() and out_file.stat().st_size > 1000:
+            saved.append(str(out_file.resolve()))
+            continue
+        ok = False
+        for attempt in range(3):
+            try:
+                r = requests.get(img_url, headers={**HEADERS, "Referer": referer}, timeout=30)
+                if r.status_code == 200 and len(r.content) > 1000:
+                    out_file.write_bytes(r.content)
+                    saved.append(str(out_file.resolve()))
+                    ok = True
+                    break
+            except Exception:
+                time.sleep(1 + attempt)
+        if not ok:
+            print(f"  [FAIL] page {i}: {img_url}")
+        time.sleep(0.15)
+    return saved
+
+
+def scrape_fallback_chapters(title: str, num_chapters: int, manga_output_dir: Path, max_pages: int = None) -> list[dict]:
+    """
+    Fallback source when MangaDex has no chapters: probe known webtoon reader
+    sites for the title slug and download chapters 1..N.
+    """
+    slug = slugify_for_readers(title)
+    print(f"[FALLBACK] Probing web readers for slug: {slug}")
+
+    working_pattern = None
+    for pattern in FALLBACK_READER_PATTERNS:
+        probe_url = pattern.format(slug=slug, num=1)
+        try:
+            r = requests.get(probe_url, headers=HEADERS, timeout=20)
+            if r.status_code == 200:
+                images = fetch_reader_chapter_images(probe_url)
+                if images:
+                    working_pattern = pattern
+                    print(f"[FALLBACK] Reader works: {probe_url} ({len(images)} pages in ch1)")
+                    break
+        except Exception:
+            continue
+
+    if not working_pattern:
+        print("[FALLBACK] No known reader site responded for this title.")
+        return []
+
+    results = []
+    for ch_num in range(1, num_chapters + 1):
+        chapter_url = working_pattern.format(slug=slug, num=ch_num)
+        print(f"\n[DOWNLOAD] Fallback chapter {ch_num}: {chapter_url}")
+        images = fetch_reader_chapter_images(chapter_url)
+        if not images:
+            print(f"  [WARN] No images found for chapter {ch_num} — stopping.")
+            break
+        if max_pages:
+            images = images[:max_pages]
+
+        ch_dir = manga_output_dir / f"ch{ch_num}"
+        saved = download_generic_images(images, ch_dir / "images", referer=chapter_url)
+
+        ch_meta = {
+            "title": title,
+            "author": "Unknown (web reader fallback)",
+            "synopsis": "",
+            "manga_id": None,
+            "manga_url": chapter_url.rsplit("/chapter-", 1)[0] + "/",
+            "chapter": {
+                "id": f"fallback-ch{ch_num}",
+                "chapter": str(ch_num),
+                "title": f"Chapter {ch_num}",
+                "group": "web-reader",
+            },
+            "source_url": chapter_url,
+            "pages_count": len(saved),
+            "images": saved,
+            "downloaded_at": time.strftime("%Y-%m-%d %H:%M:%S"),
+        }
+        meta_file = ch_dir / "metadata.json"
+        with open(meta_file, "w", encoding="utf-8") as f:
+            json.dump(ch_meta, f, indent=2, ensure_ascii=False)
+        print(f"[OK] Chapter {ch_num} saved: {len(saved)} pages -> {meta_file}")
+        results.append(ch_meta)
+
+    return results
+
+
 def run_pipeline_source_flow(input_target: str = None, num_chapters: int = None, output_base: Path = None, max_pages_per_ch: int = None) -> list[dict]:
     """
     Executes Nodes 1 to 4 of the pipeline:
@@ -365,11 +506,18 @@ def run_pipeline_source_flow(input_target: str = None, num_chapters: int = None,
     print("\n[CHAPTERS] Fetching English chapter list...")
     chapters = list_chapters(manga_info["id"], language="en")
     if not chapters:
-        print("[WARN] No English scanlations found directly. Checking all languages...")
-        chapters = list_chapters(manga_info["id"], language="raw")
-
-    if not chapters:
-        print("[ERROR] No downloadable chapters found for this title.")
+        print("[WARN] No English scanlations found on MangaDex.")
+        # MangaDex has metadata but no downloadable chapters — try web reader fallback
+        print("[FALLBACK] Trying known webtoon reader sites...")
+        slug = sanitize_filename(manga_info["title"])
+        manga_output_dir = output_base / slug
+        fallback_results = scrape_fallback_chapters(
+            manga_info["title"], num_chapters or 1, manga_output_dir, max_pages=max_pages_per_ch
+        )
+        if fallback_results:
+            print(f"\n[COMPLETE] Fallback scrape succeeded: {len(fallback_results)} chapter(s) into {manga_output_dir}")
+            return fallback_results
+        print("[ERROR] No downloadable chapters found for this title on MangaDex or fallback readers.")
         return []
 
     print(f"[INFO] Found {len(chapters)} available chapters:")
