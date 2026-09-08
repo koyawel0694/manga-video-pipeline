@@ -31,7 +31,7 @@ BLOCKS = [
 
 
 def run(prompt, timeout=900):
-    result = subprocess.run([AGY, "--model", "gemini-3.8-flash-medium", "--effort", "medium", "-p", prompt], capture_output=True, text=True, timeout=timeout)
+    result = subprocess.run([AGY, "--model", "gemini-3.8-flash-medium", "--effort", "medium", "--print-timeout", "15m", "-p", prompt], capture_output=True, text=True, timeout=timeout)
     if result.returncode:
         raise RuntimeError(result.stderr.strip() or f"agy exit {result.returncode}")
     return result.stdout.strip()
