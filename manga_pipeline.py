@@ -2,33 +2,37 @@
 """
 manga_pipeline.py — Master Orchestrator for Manga/Manhua/Manhwa Video Pipeline.
 
-Implements the complete Excalidraw whiteboard flow:
-  [Node 1] User inputs manga/manhua/manhwa link or title
+End-to-End Production Pipeline:
+  [Stage 1: Source Discovery & Scraper]
+      - Finds manga on MangaDex API or webtoon reader fallback
+      - Interactive / CLI chapter selection ("How many chapters to scrape?")
+      - Downloads all pages/panels cleanly into output/<manga>/ch<num>/images/
       ↓
-  [Node 2] Hermes discovers source materials (MangaDex / web)
+  [Stage 2: Canonical Sequential Image Analysis]
+      - Single sequential reader using Google Antigravity CLI (agy --effort medium)
+      - Maintains strict chronological story continuity across all pages
+      - Exports canonical `chapter_analysis.json`
       ↓
-  [Node 3] Interactive chapter selection ("You will ask me if how many chapters i want to scrape")
+  [Stage 3: Downstream Video & Storyboard Specialization]
+      ├─ Subagent 1 & 2: Scene-level dialogue script + video prompts -> video_prompts.csv
+      ├─ Subagent 3: 10-second SERYE Drama Storyboard Blocks (6 beats per block, timestamps, freeze frame)
+      ├─ Character Ref Sheets: 9:16 multi-view model sheets via Nano Banana Pro
+      └─ Flow Automator Max: V3 CSV production package (e01.csv, @mention auto-binding, 11-part prompts)
       ↓
-  [Node 4] Scrapes chapters into structured workspace
-      ↓
-  [Node 5] Runs processing:
-      ├─ Subagent 1: Extract chat bubbles, analyze flow, accurate script & scene action descriptions
-      ├─ Subagent 2: Create detailed structured generative video prompts to animate panels
-      └─ Subagent 3: Create 9:16 vertical storyboard using Google Antigravity CLI (agy) for ingredients guide
-      ↓
-  [Node 6] Synthesize final deliverables:
-      ├─ Complete CSV with video structured prompts, scripts & dialogues
-      └─ 9:16 vertical visual storyboard guide (Markdown + HTML viewer)
-      ↓
-  [Node 7] Ready for user manual video generation (Flow / Kling / Runway / Luma)
+  [Stage 4: Google Flow / Kling Video Generation]
+      - Batch import e01.csv into Flow Automator Max Chrome extension
+      - Character reference asset auto-binding via Slate chips
+      - Manual generation from 10s visual storyboard blocks
 
 Usage:
   Interactive:
     python3 manga_pipeline.py
-  CLI Direct:
-    python3 manga_pipeline.py --title "Solo Leveling" --chapters 1 --max-pages 5
-    python3 manga_pipeline.py --url "https://mangadex.org/title/..." --chapters 1
-    python3 manga_pipeline.py --existing-dir /home/john/manga-reviews/output/ch2
+  CLI Full End-to-End:
+    python3 manga_pipeline.py --title "The Investor Who Sees The Future" --chapters 1
+  Run on existing scraped chapter:
+    python3 manga_pipeline.py --existing-dir ./output/the-investor-who-sees-the-future/ch1
+  Run specific stages only:
+    python3 manga_pipeline.py --existing-dir ./output/the-investor-who-sees-the-future/ch1 --stage flow
 """
 
 import os
@@ -36,22 +40,31 @@ import sys
 import json
 import time
 import argparse
+import subprocess
 from pathlib import Path
 
-# Add script directory to sys.path
 SCRIPT_DIR = Path(__file__).parent.resolve()
 sys.path.insert(0, str(SCRIPT_DIR))
 
 from manga_source_scraper import run_pipeline_source_flow
-from script_and_prompt_engine import process_chapter
-from storyboard_agy import generate_storyboard_agy
 
 
 def print_banner(text: str):
-    line = "=" * 64
+    line = "=" * 68
     print(f"\n{line}")
     print(f"  {text}")
     print(f"{line}\n")
+
+
+def run_command(cmd: list[str], label: str):
+    print(f"[RUNNING] {label}...")
+    t0 = time.time()
+    res = subprocess.run(cmd, cwd=str(SCRIPT_DIR), text=True)
+    dt = time.time() - t0
+    if res.returncode != 0:
+        print(f"[FAILED] {label} (exit code {res.returncode})")
+        sys.exit(res.returncode)
+    print(f"[OK] {label} finished in {dt:.1f}s\n")
 
 
 def orchestrate_manga_pipeline(
@@ -59,15 +72,16 @@ def orchestrate_manga_pipeline(
     num_chapters: int = None,
     max_pages_per_ch: int = None,
     existing_dir: str = None,
+    stage: str = "all",
     output_base: str = "/home/john/manga-reviews/output",
-) -> list[dict]:
-    """Execute the full end-to-end manga video pipeline."""
+) -> list[Path]:
     base_out = Path(output_base).resolve()
     base_out.mkdir(parents=True, exist_ok=True)
+    python_bin = sys.executable
 
     target_chapter_dirs = []
 
-    # If existing directory was specified directly (e.g. testing with scraped chapter)
+    # Step 1: Resolve target chapter directories
     if existing_dir:
         ed = Path(existing_dir).resolve()
         if not ed.exists():
@@ -75,8 +89,7 @@ def orchestrate_manga_pipeline(
         target_chapter_dirs.append(ed)
         print_banner(f"USING EXISTING CHAPTER DIRECTORY: {ed.name}")
     else:
-        # Step 1-4: Source discovery & Chapter scraping
-        print_banner("STEP 1: SOURCE DISCOVERY & CHAPTER SCRAPING")
+        print_banner("STAGE 1: SOURCE DISCOVERY & CHAPTER SCRAPING")
         scraped_metas = run_pipeline_source_flow(
             input_target=title_or_url,
             num_chapters=num_chapters,
@@ -90,69 +103,77 @@ def orchestrate_manga_pipeline(
 
         for meta in scraped_metas:
             ch_num = meta["chapter"]["chapter"]
-            # Find chapter directory
-            # Title slug directory was used
-            manga_dir = base_out / Path(meta["images"][0]).parent.parent.name
-            ch_dir = manga_dir if manga_dir.name.startswith("ch") else (manga_dir / f"ch{ch_num}")
-            if not ch_dir.exists():
-                ch_dir = Path(meta["images"][0]).parent.parent
+            images = meta.get("images", [])
+            if images:
+                ch_dir = Path(images[0]).parent.parent
+            else:
+                manga_slug = meta.get("title", "manga").lower().replace(" ", "-")
+                ch_dir = base_out / manga_slug / f"ch{ch_num}"
             target_chapter_dirs.append(ch_dir)
 
-    all_results = []
-
-    # Process each chapter through Subagents 1, 2, and 3
+    # Process each chapter
     for ch_dir in target_chapter_dirs:
         print_banner(f"PROCESSING CHAPTER: {ch_dir.name}")
+        ch_dir = ch_dir.resolve()
 
-        # Subagent 1 & 2: Script, Dialogue, Action Descriptions & Animation Video Prompts -> CSV
-        print("[ORCHESTRATOR] Spawning Subagent 1 (Script & Dialogue) + Subagent 2 (Video Prompts)...")
-        csv_path = ch_dir / "video_prompts.csv"
-        scenes, final_csv = process_chapter(
-            chapter_dir=ch_dir,
-            output_csv=csv_path,
-            max_pages=max_pages_per_ch,
-        )
+        # Stage: Canonical Sequential Image Analysis
+        if stage in ("all", "analyze"):
+            print_banner("STAGE 2: CANONICAL SEQUENTIAL IMAGE ANALYSIS")
+            analysis_script = SCRIPT_DIR / "sequential_chapter_analysis.py"
+            run_command(
+                [python_bin, str(analysis_script), "--chapter-dir", str(ch_dir)],
+                label="Sequential Canonical Analysis (agy --effort medium)",
+            )
 
-        # Subagent 3: 9:16 Vertical Storyboard & Ingredients Guide via agy
-        print("\n[ORCHESTRATOR] Spawning Subagent 3 (9:16 Storyboard via Google Antigravity agy)...")
-        beats, md_path, html_path = generate_storyboard_agy(
-            chapter_dir=ch_dir,
-            output_dir=ch_dir,
-            max_scenes=len(scenes),
-        )
+        # Stage: Scene-Level Prompts & Dialogue CSV
+        if stage in ("all", "prompts"):
+            print_banner("STAGE 3A: SCENE PROMPTS & DIALOGUE EXTRACTION")
+            prompts_script = SCRIPT_DIR / "script_and_prompt_engine.py"
+            csv_path = ch_dir / "video_prompts.csv"
+            run_command(
+                [python_bin, str(prompts_script), "--chapter-dir", str(ch_dir), "--output-csv", str(csv_path)],
+                label="Subagent 1 & 2 Scene Engine",
+            )
 
-        chapter_summary = {
-            "chapter_dir": str(ch_dir),
-            "csv_prompts": str(final_csv),
-            "storyboard_markdown": str(md_path),
-            "storyboard_html": str(html_path),
-            "total_scenes": len(scenes),
-            "total_beats": len(beats),
-        }
-        all_results.append(chapter_summary)
+        # Stage: 10-Second SERYE Drama Storyboard Blocks
+        if stage in ("all", "storyboard"):
+            print_banner("STAGE 3B: 10-SECOND SERYE DRAMA STORYBOARD BLOCKS")
+            serye_script = SCRIPT_DIR / "build_serye_storyboard.py"
+            canon_json = ch_dir / "chapter_analysis.json"
+            if canon_json.exists():
+                run_command(
+                    [python_bin, str(serye_script), "--analysis", str(canon_json), "--output-dir", str(ch_dir)],
+                    label="SERYE 10s Storyboard Blocks Builder",
+                )
+            else:
+                print(f"[WARN] {canon_json} not found. Skipping SERYE storyboard generation.")
 
-        # Print final chapter handoff summary
-        print("\n" + "#" * 64)
-        print("  CHAPTER PROCESSING DELIVERABLES READY")
-        print("#" * 64)
-        print(f"Directory:           {ch_dir}")
-        print(f"1. Video Prompts CSV: {final_csv}")
-        print(f"2. 9:16 Storyboard MD: {md_path}")
-        print(f"3. Visual HTML View:   {html_path}")
-        print(f"Total Video Scenes:  {len(scenes)}")
-        print("#" * 64 + "\n")
+        # Stage: Flow Automator Max V3 Production CSV
+        if stage in ("all", "flow"):
+            print_banner("STAGE 3C: FLOW AUTOMATOR MAX V3 CSV PACKAGE")
+            flow_script = SCRIPT_DIR / "build_flow_automator_csv.py"
+            if flow_script.exists():
+                run_command(
+                    [python_bin, str(flow_script)],
+                    label="Flow Automator Max Production CSV Builder",
+                )
 
-    print_banner("PIPELINE EXECUTION COMPLETE — READY FOR MANUAL VIDEO GENERATION")
-    print("How to generate videos:")
-    print("1. Open the CSV or HTML viewer to inspect scene prompts & ingredients.")
-    print("2. In Google Flow / Kling / Runway / Luma:")
-    print("   - Select 9:16 Vertical aspect ratio.")
-    print("   - Upload the referenced panel from images/.")
-    print("   - Paste the Video_Animation_Prompt.")
-    print("3. Use the Dialogue_Script with parenthesized emotion cues for TTS voiceover.")
-    print("-" * 64)
+        # Print Final Deliverables Summary for Chapter
+        print_banner("CHAPTER PRODUCTION DELIVERABLES READY")
+        print(f"Target Directory: {ch_dir}\n")
+        print("Key Artifacts Generated:")
+        print(f"1. Canonical Story Analysis:     {ch_dir / 'chapter_analysis.json'}")
+        print(f"2. Scene-Level Video Prompts:    {ch_dir / 'video_prompts.csv'}")
+        print(f"3. SERYE 10s Storyboard Markdown: {ch_dir / 'storyboard_9_16.md'}")
+        print(f"4. SERYE 10s Storyboard HTML:     {ch_dir / 'storyboard_9_16.html'}")
+        print(f"5. Character Reference Sheets:   {ch_dir / 'character_refs'}")
+        print(f"6. 10s Visual Storyboard Sheets: {ch_dir / 'nano_storyboards'}")
+        print(f"7. Visual Master Gallery:        {ch_dir / 'gallery.html'}")
+        print(f"8. Flow Automator Max Queue CSV: {ch_dir / 'flow_queue' / 'e01.csv'}")
+        print("-" * 68)
 
-    return all_results
+    print_banner("PIPELINE COMPLETE — READY FOR FLOW / KLING VIDEO GENERATION")
+    return target_chapter_dirs
 
 
 def main():
@@ -160,17 +181,19 @@ def main():
     parser.add_argument("--title", "-t", default=None, help="Manga title to search")
     parser.add_argument("--url", "-u", default=None, help="Manga URL to scrape")
     parser.add_argument("--chapters", "-c", type=int, default=None, help="How many chapters to scrape")
-    parser.add_argument("--max-pages", "-m", type=int, default=None, help="Max pages per chapter (for quick runs)")
-    parser.add_argument("--existing-dir", "-e", default=None, help="Process an already scraped chapter directory")
+    parser.add_argument("--max-pages", "-m", type=int, default=None, help="Max pages per chapter")
+    parser.add_argument("--existing-dir", "-e", default=None, help="Process an existing chapter directory")
+    parser.add_argument("--stage", default="all", choices=["all", "scrape", "analyze", "prompts", "storyboard", "flow"], help="Run specific pipeline stage")
     parser.add_argument("--output-base", "-o", default="/home/john/manga-reviews/output", help="Output base directory")
     args = parser.parse_args()
 
-    input_target = args.url or args.title
+    target = args.url or args.title
     orchestrate_manga_pipeline(
-        title_or_url=input_target,
+        title_or_url=target,
         num_chapters=args.chapters,
         max_pages_per_ch=args.max_pages,
         existing_dir=args.existing_dir,
+        stage=args.stage,
         output_base=args.output_base,
     )
 
