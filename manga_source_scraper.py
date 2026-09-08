@@ -363,24 +363,24 @@ def download_generic_images(image_urls: list[str], images_dir: Path, referer: st
     return saved
 
 
-def scrape_fallback_chapters(title: str, num_chapters: int, manga_output_dir: Path, max_pages: int = None) -> list[dict]:
+def scrape_fallback_chapters(title: str, num_chapters: int, manga_output_dir: Path, max_pages: int = None, start_chapter: int = 1) -> list[dict]:
     """
     Fallback source when MangaDex has no chapters: probe known webtoon reader
-    sites for the title slug and download chapters 1..N.
+    sites for the title slug and download chapters from start_chapter to (start_chapter + num_chapters - 1).
     """
     slug = slugify_for_readers(title)
     print(f"[FALLBACK] Probing web readers for slug: {slug}")
 
     working_pattern = None
     for pattern in FALLBACK_READER_PATTERNS:
-        probe_url = pattern.format(slug=slug, num=1)
+        probe_url = pattern.format(slug=slug, num=start_chapter)
         try:
             r = requests.get(probe_url, headers=HEADERS, timeout=20)
             if r.status_code == 200:
                 images = fetch_reader_chapter_images(probe_url)
                 if images:
                     working_pattern = pattern
-                    print(f"[FALLBACK] Reader works: {probe_url} ({len(images)} pages in ch1)")
+                    print(f"[FALLBACK] Reader works: {probe_url} ({len(images)} pages in ch{start_chapter})")
                     break
         except Exception:
             continue
@@ -390,7 +390,8 @@ def scrape_fallback_chapters(title: str, num_chapters: int, manga_output_dir: Pa
         return []
 
     results = []
-    for ch_num in range(1, num_chapters + 1):
+    end_chapter = start_chapter + num_chapters
+    for ch_num in range(start_chapter, end_chapter):
         chapter_url = working_pattern.format(slug=slug, num=ch_num)
         print(f"\n[DOWNLOAD] Fallback chapter {ch_num}: {chapter_url}")
         images = fetch_reader_chapter_images(chapter_url)
@@ -429,7 +430,7 @@ def scrape_fallback_chapters(title: str, num_chapters: int, manga_output_dir: Pa
     return results
 
 
-def run_pipeline_source_flow(input_target: str = None, num_chapters: int = None, output_base: Path = None, max_pages_per_ch: int = None) -> list[dict]:
+def run_pipeline_source_flow(input_target: str = None, num_chapters: int = None, output_base: Path = None, max_pages_per_ch: int = None, start_chapter: int = 1) -> list[dict]:
     """
     Executes Nodes 1 to 4 of the pipeline:
       - Accepts input (link or title)
@@ -455,6 +456,11 @@ def run_pipeline_source_flow(input_target: str = None, num_chapters: int = None,
     if not input_target:
         print("[ERROR] Empty link/title provided.")
         return []
+
+    # Check if input URL has chapter number
+    m_ch_url = re.search(r"chapter-(\d+)", input_target, re.IGNORECASE)
+    if m_ch_url and start_chapter == 1:
+        start_chapter = int(m_ch_url.group(1))
 
     print(f"\n[SEARCH] Resolving source materials for: {input_target}")
     kind, val = extract_mangadex_id(input_target)
@@ -512,7 +518,7 @@ def run_pipeline_source_flow(input_target: str = None, num_chapters: int = None,
         slug = sanitize_filename(manga_info["title"])
         manga_output_dir = output_base / slug
         fallback_results = scrape_fallback_chapters(
-            manga_info["title"], num_chapters or 1, manga_output_dir, max_pages=max_pages_per_ch
+            manga_info["title"], num_chapters or 1, manga_output_dir, max_pages=max_pages_per_ch, start_chapter=start_chapter
         )
         if fallback_results:
             print(f"\n[COMPLETE] Fallback scrape succeeded: {len(fallback_results)} chapter(s) into {manga_output_dir}")
@@ -557,6 +563,7 @@ def main():
     parser.add_argument("--query", "-q", help="Manga title query")
     parser.add_argument("--url", "-u", help="MangaDex URL or chapter URL")
     parser.add_argument("--chapters", "-c", type=int, default=None, help="How many chapters to scrape")
+    parser.add_argument("--start-chapter", "-s", type=int, default=1, help="Chapter number to start scraping from (default 1)")
     parser.add_argument("--max-pages", "-m", type=int, default=None, help="Max pages per chapter to scrape")
     parser.add_argument("--output-dir", "-o", default="/home/john/manga-reviews/output", help="Base output directory")
     args = parser.parse_args()
@@ -568,6 +575,7 @@ def main():
         num_chapters=args.chapters,
         output_base=out_dir,
         max_pages_per_ch=args.max_pages,
+        start_chapter=args.start_chapter,
     )
 
 
