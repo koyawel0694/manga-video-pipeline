@@ -73,18 +73,19 @@ def load_scenes(path):
             item = dict(scene)
             item["page_number"] = page["page_number"]
             item["page_file"] = page["page_file"]
+            item["_scene_id"] = len(scenes)
             scenes.append(item)
     return data, scenes
 
 
 def pick_scene(scenes, title, pages, used):
-    exact = [s for s in scenes if s.get("scene_title") == title and s["page_number"] not in used]
+    exact = [s for s in scenes if s.get("scene_title") == title and s["_scene_id"] not in used]
     if exact:
         return exact[0]
-    partial = [s for s in scenes if title.lower() in s.get("scene_title", "").lower() and s["page_number"] not in used]
+    partial = [s for s in scenes if title.lower() in s.get("scene_title", "").lower() and s["_scene_id"] not in used]
     if partial:
         return partial[0]
-    in_range = [s for s in scenes if pages[0] <= s["page_number"] <= pages[1] and s["page_number"] not in used]
+    in_range = [s for s in scenes if pages[0] <= s["page_number"] <= pages[1] and s["_scene_id"] not in used]
     if in_range:
         return in_range[0]
     any_scene = [s for s in scenes if pages[0] <= s["page_number"] <= pages[1]]
@@ -123,7 +124,7 @@ def build(data, scenes):
         beats = []
         for i, (label, title) in enumerate(zip(block["labels"], block["titles"])):
             scene = pick_scene(scenes, title, block["pages"], used)
-            used.add(scene["page_number"])
+            used.add(scene["_scene_id"])
             beats.append(beat_from(scene, label, DURATIONS[i], final=(i == 5)))
         blocks.append({
             "block_title": block["title"],
