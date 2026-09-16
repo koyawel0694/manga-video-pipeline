@@ -1,6 +1,6 @@
 ---
 name: manga-review-pipeline
-description: "Use when turning a manga/manhwa/manhua chapter into panel assets, character-reference sheets, 9:16 storyboards, and block prompt .txt files."
+description: "Use when turning a manga/manhwa/manhua chapter into panel assets, character-reference sheets, 9:16 storyboards, block prompt .txt files, or handling the /manga slash-command workflow."
 license: MIT
 metadata:
   hermes:
@@ -36,6 +36,23 @@ Use for requests such as:
 - package the above outputs for a manga/manhwa/manhua adaptation.
 
 Do not activate this workflow only to write a generic manga review, make a final narrated slideshow, or edit an already-rendered video.
+
+## Slash command interface
+
+Treat a user message beginning with `/manga` as a command request and route it using [references/slash-command-contract.md](references/slash-command-contract.md).
+
+The supported commands are:
+
+~~~text
+/manga scrape [manga-title-or-url] <chapter>
+/manga char <sensenova|antigravity> [manga-title] [chapter]
+/manga storyboard <sensenova|antigravity> [manga-title] [chapter]
+/manga blockprompts [manga-title] [chapter]
+~~~
+
+For `char`, `storyboard`, and `blockprompts`, an omitted title or chapter resolves to the active chapter context established by a successful scrape in the current task. Do not guess between multiple titles or chapters. `sensenova` and `antigravity` are the only valid image-generation providers for `char` and `storyboard`; do not silently substitute `agy`, `auto`, or another provider. If the requested provider is unavailable, stop and report the configuration problem.
+
+The command workflow is stateful within the task: scrape establishes the title, slug, chapter, source URL, and chapter directory; downstream commands reuse that context. Every command must still verify its prerequisite files and report the exact output directory when complete.
 
 ## Non-negotiable workflow rules
 
@@ -220,6 +237,7 @@ For a new title, use --title or --url with --chapters 1, then locate the exact c
 
 Read only the reference needed for the current branch:
 
+- references/slash-command-contract.md — parse `/manga` commands, resolve active chapter context, enforce provider selection, and route prerequisites.
 - references/manga-chapter-asset-contract.md — exact artifact names, image dimensions, storyboard layout, and TXT delimiter contract.
 - references/sequential-analysis-and-downstream-fanout.md — canonical reader schema, safe fan-out boundary, and validation.
 - references/one-prompt-artifact-contract.md — completion order and character-reference provenance.
