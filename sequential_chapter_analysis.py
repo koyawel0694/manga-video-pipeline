@@ -2,25 +2,27 @@
 """Sequential canonical manga page analysis using agy medium effort."""
 import argparse
 import json
+import os
 import re
 import subprocess
 import time
 from pathlib import Path
 
-AGY = "/home/john/.local/bin/agy"
+AGY = os.environ.get("AGY_BIN", "/home/john/.local/bin/agy")
 
 PROMPT = """Read manga/manhwa page image at {image_path}.
 You are the single canonical sequential reader for Chapter {chapter}.
 Page number: {page_number}. Preserve continuity from prior pages when context is supplied.
 
 Return ONLY valid JSON, no markdown fences, exactly this shape:
-{{"page_number": {page_number}, "page_file": "{page_file}", "scenes": [{{"scene_title":"short title", "panel_location":"top/center/bottom/full-page", "speaker":"character name, role, or Narrator", "voice_emotion":"(emotion, tone)", "dialogue_text":"exact readable dialogue or empty string", "action_description":"precise visible action, facial expression, blocking, setting", "story_flow":"how this page advances the story", "video_animation_prompt":"detailed image-to-video prompt preserving original line art and character identity", "camera_movement":"specific camera movement", "visual_style_fx":"lighting, atmosphere, and effects", "estimated_duration_sec":4.0}}]}}
+{{"page_number": {page_number}, "page_file": "{page_file}", "scenes": [{{"scene_title":"short title", "panel_location":"top/center/bottom/full-page", "speaker":"character name, role, or Narrator", "text_type":"spoken/narration/thought/sfx/caption/unknown", "voice_emotion":"(emotion, tone) or empty string", "dialogue_text":"exact readable dialogue or empty string", "action_description":"precise visible action, facial expression, blocking, setting", "story_flow":"how this page advances the story", "video_animation_prompt":"detailed image-to-video prompt preserving original line art and character identity", "camera_movement":"specific camera movement", "visual_style_fx":"lighting, atmosphere, and effects", "estimated_duration_sec":4.0}}]}}
 
 Rules:
-- Transcribe readable speech bubbles, narration boxes, thought bubbles, and important SFX exactly.
+- Transcribe readable speech bubbles, narration boxes, thought bubbles, captions, and important SFX exactly.
 - Never invent text. If visible text cannot be read, use "[unreadable]".
 - Use one scene per meaningful panel or beat. Keep page order.
-- Parenthesized emotion cue must describe delivery; dialogue_text itself stays verbatim.
+- Classify text as spoken, narration, thought, sfx, caption, or unknown. SFX is not spoken dialogue.
+- Use an empty voice_emotion for SFX/captions when no delivery applies. Parenthesized emotion cue must describe delivery; dialogue_text itself stays verbatim.
 - Describe only visible facts for action; mark uncertain identity as uncertain.
 - Keep output valid JSON."""
 
@@ -37,6 +39,30 @@ def parse_json(text: str) -> dict:
         if not match:
             raise
         return json.loads(match.group(0))
+
+
+def validate_page(data: dict, page_num: int) -> dict:
+    """Reject malformed model output before it becomes canonical source data."""
+    if not isinstance(data, dict) or not isinstance(data.get("scenes"), list) or not data["scenes"]:
+        raise ValueError("canonical page output must contain a non-empty scenes list")
+    for scene in data["scenes"]:
+        if not isinstance(scene, dict):
+            raise ValueError("scene entry is not an object")
+        for field in ("scene_title", "dialogue_text", "action_description", "story_flow", "camera_movement", "visual_style_fx"):
+            if field not in scene or not isinstance(scene[field], str):
+                raise ValueError(f"scene is missing string field {field}")
+        if "text_type" in scene and scene["text_type"] not in {"spoken", "narration", "thought", "sfx", "caption", "unknown"}:
+            raise ValueError(f"invalid text_type {scene['text_type']!r}")
+    data["page_number"] = page_num
+    return data
+
+
+def save_json(path: Path, payload: dict) -> None:
+    """Commit a complete JSON file atomically so interruption cannot corrupt it."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temp = path.with_suffix(path.suffix + ".tmp")
+    temp.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    temp.replace(path)
 
 
 def analyze_page(image_path: Path, page_num: int, chapter: str, prior_summary: str, effort: str = "medium") -> dict:
@@ -56,9 +82,7 @@ def analyze_page(image_path: Path, page_num: int, chapter: str, prior_summary: s
     )
     if result.returncode != 0:
         raise RuntimeError(result.stderr.strip() or f"agy exited {result.returncode}")
-    data = parse_json(result.stdout)
-    if data.get("page_number") != page_num:
-        data["page_number"] = page_num
+    data = validate_page(parse_json(result.stdout), page_num)
     data["page_file"] = image_path.name
     if not isinstance(data.get("scenes"), list):
         raise ValueError("missing scenes list")
@@ -94,10 +118,21 @@ def main():
         list((chapter_dir / "images").glob("*.webp"))
         + list((chapter_dir / "images").glob("*.jpg"))
         + list((chapter_dir / "images").glob("*.jpeg"))
-        + list((chapter_dir / "images").glob("*.png"))
+        + list((chapter_dir / "images").glob("*.png")),
+        key=lambda path: (
+            int(match.group(1)) if (match := re.search(r"page_(\d+)", path.stem)) else 10**9,
+            path.name,
+        )
     )
     if not images:
         raise SystemExit("No chapter images found")
+    page_numbers = [
+        int(match.group(1))
+        for image in images
+        if (match := re.search(r"page_(\d+)", image.stem))
+    ]
+    if page_numbers != list(range(1, len(images) + 1)):
+        raise SystemExit(f"Chapter images must be page_001..page_NNN without gaps; found {page_numbers}")
     existing = {}
     if output.exists():
         try:
@@ -107,11 +142,14 @@ def main():
                 and str(old.get("chapter") or "") == chapter
             )
             if same_identity:
-                existing = {
-                    p["page_number"]: p
-                    for p in old.get("pages", [])
-                    if "page_number" in p and "page_file" in p
-                }
+                existing = {}
+                for page in old.get("pages", []):
+                    if "page_number" not in page or "page_file" not in page:
+                        continue
+                    try:
+                        existing[int(page["page_number"])] = validate_page(page, int(page["page_number"]))
+                    except (TypeError, ValueError):
+                        continue
             print(f"Resuming existing canonical analysis: {len(existing)} pages")
         except Exception:
             pass
@@ -148,7 +186,7 @@ def main():
             "updated_at": time.strftime("%Y-%m-%d %H:%M:%S"),
             "pages": pages,
         }
-        output.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
+        save_json(output, payload)
         print(f"[SAVED] {len(pages)}/{len(images)} pages", flush=True)
     payload = {
         "title": title,
@@ -160,7 +198,7 @@ def main():
         "completed_at": time.strftime("%Y-%m-%d %H:%M:%S"),
         "pages": pages,
     }
-    output.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
+    save_json(output, payload)
     print(f"[COMPLETE] {output} ({len(pages)} pages)")
 
 

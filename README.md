@@ -3,9 +3,10 @@
 Production-grade automated pipeline converting comic series into AI-generated short-form vertical dramas (TikTok, YouTube Shorts, Reels) and cinematic video sequences:
 1. **Source Discovery & Scraper**: MangaDex API + fallback webtoon reader scrapers
 2. **Canonical Sequential Vision Analysis**: Single-reader chronological analysis via Google Antigravity CLI (`agy --effort medium`)
-3. **SERYE Drama Storyboards**: 10-second dramatic blocks with 6 timestamped beats and locked freeze frames
-4. **Visual Character References**: Multi-view model sheets with consistent faces & wardrobe anchors via Nano Banana Pro
-5. **Flow Automator Max Production CSV**: V3 CSV schema with `@CharacterName` auto-binding, 11-part Masterclass cinematography prompts, and embedded voiceover emotion cues
+3. **Canonical Manga Script Ledger**: Exact source text in page/scene order with stable IDs, text types, speakers, and source hash
+4. **SERYE Drama Storyboards**: 10-second dramatic blocks with 6 timestamped beats, exact script cues, and locked freeze frames
+5. **Visual Character References**: Multi-view model sheets with consistent faces & wardrobe anchors via Nano Banana Pro
+6. **Flow/Kling/Runway Prompt TXT**: Shot-by-shot and continuous plain-text prompts with exact per-beat script cues
 
 ---
 
@@ -28,15 +29,14 @@ Production-grade automated pipeline converting comic series into AI-generated sh
                │
                ▼
 [Stage 3: Downstream Specialization]
-  ├─ Subagent 1 & 2: Scene-Level Prompts & Dialogue -> video_prompts.csv
-  ├─ Subagent 3: 10-Second SERYE Drama Storyboard Blocks -> storyboard_9_16.html & .md
+  ├─ Canonical source-text ledger -> chapter_script.json/.txt/.md
+  ├─ 10-Second SERYE Drama Storyboard Blocks -> storyboard_9_16.html/.md/.json
   ├─ Character Reference Sheets: 9:16 Model Sheets -> character_refs/*_ref.png
-  └─ Flow Automator Max Package: e01.csv & block*_queue.csv with @mention auto-binding
+  └─ Plain-text prompt package: flow_queue/block*_prompts.txt and block*_video_prompt.txt
                │
                ▼
 [Stage 4: Google Flow / Kling / Runway Video Generation]
-  ├─ In Flow Automator Max Chrome Extension: Click 'CSV' -> Load e01.csv
-  └─ Slate chip pills auto-bind character assets from the asset library
+  └─ Paste verified prompt TXT files and attach canonical character references
 ```
 
 ---
@@ -48,10 +48,9 @@ Production-grade automated pipeline converting comic series into AI-generated sh
 | `manga_pipeline.py` | **Master Orchestrator**: runs the entire flow end-to-end or by stage | `--title`, `--chapters`, `--stage`, `--existing-dir` |
 | `manga_source_scraper.py` | **Discovery & Scraper**: MangaDex API + Madara reader fallback | Downloads images + creates `metadata.json` |
 | `sequential_chapter_analysis.py` | **Canonical Vision Reader**: sequential chronological analysis | Reads `images/` -> writes `chapter_analysis.json` |
-| `script_and_prompt_engine.py` | **Scene Prompt Engine**: detailed prompts + dialogue extraction | Produces `video_prompts.csv` & `pipeline_data.json` |
 | `build_serye_storyboard.py` | **10s SERYE Storyboard Blocks**: groups into 10s dramatic cuts | Generates `storyboard_9_16.html`, `.md`, `.json` |
 | `generate_nano_storyboards.py` | **Character Model Sheets**: 9:16 multi-view anchors via `agy` | Outputs `character_refs/*_ref.png` |
-| `build_flow_automator_csv.py` | **Flow Automator V3 CSV**: 6-block queue with `@mentions` | Generates `flow_queue/e01.csv` & per-block files |
+| `build_block_prompts_txt.py` | **Prompt TXT Exporter**: exact script cues in shot and continuous prompts | Generates `flow_queue/*.txt` and manifests |
 
 ---
 
@@ -87,28 +86,15 @@ python3 manga_pipeline.py --existing-dir ./output/ch1 --stage analyze
 # Only rebuild SERYE 10s storyboards
 python3 manga_pipeline.py --existing-dir ./output/ch1 --stage storyboard
 
-# Only generate Flow Automator Max CSV
+# Only generate plain-text video prompts
 python3 manga_pipeline.py --existing-dir ./output/ch1 --stage flow
 ```
 
 ---
 
-## ⚡ Google Flow Automator Max Integration
+## ⚡ Google Flow / Kling / Runway Integration
 
-The generated queue file follows the **Flow Automator Max V3 CSV schema**:
-```csv
-prompt,description,hashtags,videoModel,videoMode,videoDurationSeconds,flowQuantity,videoVoiceReference,flowAspectRatio
-```
-
-### How to Batch Generate in Chrome:
-1. Open the **Flow Automator Max** extension sidebar in Chrome.
-2. Under the **Prompt Queue** card, click the **CSV** button.
-3. Select `output/<series>/ch1/flow_queue/e01.csv`.
-4. The extension automatically:
-   - Parses the `@CharacterName` tokens (e.g. `@Kang Jin-Hoo`, `@Oh Taek-Gyu`).
-   - Scans the Google Flow React Fiber tree and binds matching character asset chips.
-   - Arms all 10-second blocks in the queue.
-5. Click **Add to Queue** and start batch video generation.
+Use the verified plain-text files in `flow_queue/` or the standalone per-episode queues. Each `blockN_prompts.txt` contains six shots separated by `@@@NEXT@@@`; each `blockN_video_prompt.txt` contains one coherent 10-second block with the exact script cue for every beat. Attach the chapter's canonical character references separately. CSV is not generated by the default pipeline.
 
 ---
 
@@ -119,7 +105,8 @@ output/the-investor-who-sees-the-future/ch1/
 ├── images/                         # Downloaded original panels (page_001.webp ...)
 ├── metadata.json                   # Chapter metadata & page list
 ├── chapter_analysis.json           # Canonical single-reader story analysis
-├── video_prompts.csv               # Complete scene-level video prompts & script table
+├── chapter_script.json             # Exact source-text ledger (canonical)
+├── chapter_script.txt / .md         # Human-readable script exports
 ├── storyboard_9_16.html            # Dark-mode visual 10s storyboard viewer
 ├── storyboard_9_16.md              # Director's Markdown specification
 ├── storyboard_9_16.json            # Machine-readable storyboard beats
@@ -131,12 +118,12 @@ output/the-investor-who-sees-the-future/ch1/
 │   ├── shin_yuri_ref.png
 │   ├── female_interviewer_ref.png
 │   └── spirit_shaman_ref.png
-├── nano_storyboards/               # Full 10s visual storyboard strips (Block 1 to 6)
+├── episodes/                       # Standalone 60s packages for long chapters
 └── flow_queue/                     # Flow Automator Max ready-to-import files
-    ├── e01.csv                     # Full 6-block Episode 1 CSV
-    ├── block1_queue.csv .. block6  # Per-block CSVs
-    ├── block1_video_prompt.txt ..  # Raw prompt text files
-    └── char_refs_investor.csv      # Character reference image queue
+    ├── block1_prompts.txt ..       # Six shot prompts per block, @@@NEXT@@@ separated
+    ├── block1_video_prompt.txt ..  # Continuous 10-second prompts with script cues
+    ├── flow_all_*_shots.txt        # Flat shot convenience export
+    └── prompt_txt_manifest.json
 ```
 
 ---
