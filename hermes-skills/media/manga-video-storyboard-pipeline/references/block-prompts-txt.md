@@ -33,7 +33,7 @@ Each shot prompt follows an exact 9-part specification:
 5. **Character Identity Anchor**: References the canonical character sheets in `character_refs/`.
 6. **Scene Context & Timing**: Series title, episode number (if episodic), block number, beat number, and timestamp range (`0s-1.5s`, `1.5s-3s`, etc.).
 7. **Action & Camera**: Precise action description, camera angle, and lens movement.
-8. **Dialogue / Audio Cue**: Use the exact canonical cue: `MANGA SCRIPT — Speaker: ... Exact line: "..."` for spoken/narrated text, `MANGA SOUND EFFECT (not spoken): ...` for SFX, or the explicit no-dialogue cue for silent beats.
+8. **Dialogue / Audio Cue**: Use the exact canonical cue: `MANGA SCRIPT — Speaker: ... Exact line: "..."` for spoken/narrated text, `MANGA SOUND EFFECT (not spoken): ...` for SFX, or the explicit no-dialogue cue for silent beats. If a provider-safety redaction is explicitly marked, preserve the exact source in the canonical ledger and follow the redaction instead.
 9. **Source Identity**: Include the stable `p###-s##` scene ID so the prompt can be audited back to `chapter_analysis.json` and `chapter_script.json`.
 
 ## 3. Freeze Frame Directive
@@ -47,17 +47,21 @@ When a chapter has > 25 pages, `build_serye_storyboard.py` segments the chapter 
 1. Each episode directory contains a standalone `flow_queue/` with 1-indexed prompts (`block1_prompts.txt` through `block6_prompts.txt`).
 2. Users can open `episodes/ep01/flow_queue/` or `ep02/flow_queue/` and copy-paste each block's prompts directly into Google Flow without manual numbering translation or offset math.
 
-## 5. Content Safety & Flow Guardrails (Bypassing "Harmful Content" False Positives)
-Google Flow and other video generators reject prompts containing graphic human violence, injury, blood, or physical restraint under their "harmful content" safety policies. `build_block_prompts_txt.py` automatically soft-revises prompts to prevent generation failures while preserving exact narrative beats:
+## 5. Content Safety & Provider-Safe Adaptations
+Google Flow and other video generators may reject prompts containing graphic human violence, injury, blood, physical restraint, or sensitive intimate framing. `build_block_prompts_txt.py` soft-revises provider-facing visual and audio instructions while preserving the canonical narrative ledger:
 1. **Human Violence & Physical Restraint**:
    - Never describe human assault or pinning down up close (e.g. "two miners forcefully pin down the protagonist").
    - Soft-revise to distant silhouettes or standing posture (e.g. "two miners stand menacingly over the protagonist on the floor").
 2. **Human Blood, Gore & Wounds**:
-   - Eliminate all human blood and injury terminology ("coughing up blood", "bleeding face", "spitting blood", "broken body").
-   - Replace with environmental grime, soot, exhaustion, or shadow energy ("breathing heavily in exhaustion amidst dark industrial soot", "weary frame", "dark grime").
-   - Fantasy monster descriptions and alien ichor are permitted; only human injury triggers the filter.
+   - Eliminate human blood and injury terminology from provider-facing action text.
+   - Replace with environmental grime, soot, exhaustion, or shadow energy.
+   - Fantasy creature descriptions can remain non-graphic and physically grounded.
 3. **Crying & Grief**:
-   - Do not use "tear-streaked face stained with blood" or "crying/weeping".
-   - Replace with "tense, determined face marked with quarry soot" or "grimacing with exertion".
-4. **Verbatim Dialogue Preservation**:
-   - The script cue (`MANGA SCRIPT — Speaker: ... Exact line: "..."`) remains exact and untampered; only the descriptive action and camera prompts are sanitized.
+   - Prefer restrained facial acting, sweat, shadow, and posture over graphic injury or extreme bodily distress.
+4. **Canonical Script Fidelity**:
+   - `chapter_analysis.json` and `chapter_script.json/.txt/.md` remain exact and unchanged.
+   - Normal provider prompts retain the exact canonical dialogue cue.
+5. **Sensitive Source Material Involving School-Age Characters**:
+   - Do not request nudity, private-room intimacy, suggestive acting, or recognizable sexualized audio. Stage the memory with fully clothed figures, clear distance, a public or abstract setting, and the affected character's emotional reaction.
+   - If the source dialogue itself would make a provider prompt unsafe, emit an auditable `MANGA SCRIPT SAFETY REDACTION` containing the speaker and `p###-s##` source ID, instructing the provider not to render, quote, voice, lip-sync, caption, or reenact that line. The exact source remains available in the canonical ledger for audit.
+   - Record such redactions in `prompt_txt_manifest.json`. This is a safety-compliant adaptation, not a method for bypassing provider safeguards.

@@ -30,7 +30,38 @@ STYLE_LOCK = (
     "STRICTLY NOT 3D render, NOT live-action CGI, NOT photorealistic."
 )
 
+# Provider-facing prompts must not reproduce source cues that can be
+# interpreted as intimate or exploitative content involving school-age
+# characters. The canonical source text remains unchanged in chapter_script.*;
+# only the generation-facing cue is redacted with an auditable scene ID.
+SENSITIVE_PROVIDER_SCENE_IDS = {"p017-s04"}
+SENSITIVE_PROVIDER_MARKERS = (
+    "surrendering to lust",
+    "breathless moans",
+    "bare-shouldered",
+    "wrapped in sheets",
+    "succumbing to the blonde guy's advances",
+    "yes♡ ah",
+)
+
+
 FLOW_POLICY_RULES = [
+    # Youth-sensitive source imagery: keep the adaptation non-intimate and
+    # fully clothed while preserving the emotional-betrayal story beat.
+    (r"\bSurrendering to Lust\b", "Nightmare of Betrayal"),
+    (r"\bEmbrace of Betrayal\b", "Memory of Rejection"),
+    (r"\bwhile wrapped in sheets or bare-shouldered\b", "fully clothed in a public-place memory, standing several steps away from the upperclassman"),
+    (r"\bwrapped in sheets\b", "fully clothed in a public-place memory"),
+    (r"\bbare-shouldered\b", "fully clothed"),
+    (r"\bembracing the blonde upperclassman\b", "standing several steps away from the blonde upperclassman"),
+    (r"\bclutching her new lover\b", "standing apart from the other student while Eiji watches from a distance"),
+    (r"\bsuccumbing to the blonde guy's advances\b", "turning away as the memory fractures around Eiji"),
+    (r"\ba heart-shaped speech bubble\b", "an abstract fractured shadow motif"),
+    (r"\bbreathless moans and Japanese breathing SFX \([^)]*\)\b", "muffled indistinct dream ambience with no recognizable vocalization"),
+    (r"\bbreathless moans\b", "muffled indistinct dream ambience with no recognizable vocalization"),
+    (r"\bflirtatious\b", "cold and dismissive"),
+    (r"\blustful\b", "shaken and distressed"),
+    (r"\bprivate behavior\b", "a distant emotional memory"),
     # Restraint & human violence
     (r"\bforcefully pin(?:s|ned|ning)? down\b", "stand menacingly over"),
     (r"\bpin(?:s|ned|ning)? down\b", "stand over"),
@@ -104,6 +135,80 @@ def sanitize_flow_action(text: str) -> str:
     for pattern, replacement in FLOW_POLICY_RULES:
         text = re.sub(pattern, replacement, text, flags=re.IGNORECASE)
     return text
+
+
+def is_sensitive_provider_beat(beat: dict) -> bool:
+    """Return whether a source beat needs a provider-safe transcript cue."""
+    scene_id = text(beat.get("source_scene_id"))
+    corpus = " ".join(
+        text(beat.get(key)).lower()
+        for key in ("scene_title", "action", "speaker", "source_text", "dialogue_text", "voice_emotion")
+    )
+    return scene_id in SENSITIVE_PROVIDER_SCENE_IDS or any(
+        marker in corpus for marker in SENSITIVE_PROVIDER_MARKERS
+    )
+
+
+def provider_safe_action(beat: dict) -> str:
+    """Make sensitive memory imagery safe without altering canonical analysis."""
+    scene_id = text(beat.get("source_scene_id"))
+    if scene_id == "p017-s02":
+        return (
+            "In an abstract public-place nightmare memory, Miyuki is fully clothed in her "
+            "school uniform and stands several steps away from the other student, delivering "
+            "a cold rejection while Eiji watches from a distant, distorted viewpoint. "
+            "Use neutral non-contact staging, clear physical distance, and Eiji's distressed "
+            "reaction only; use subdued dream ambience."
+        )
+    if scene_id == "p017-s04":
+        return (
+            "Abstract nightmare memory: Miyuki and the upperclassman appear as fully clothed, "
+            "distant silhouettes in a public-place setting, separated by clear space. A fractured "
+            "shadow motif and Eiji's distant distressed viewpoint convey betrayal; use subdued "
+            "dream ambience with no recognizable speech."
+        )
+    action = sanitize_flow_action(text(beat.get("action")))
+    if not is_sensitive_provider_beat(beat):
+        return action
+    # Positive staging instructions are more reliable than a long negative list
+    # and avoid repeating the source's sensitive phrasing to the provider.
+    return (
+        action
+        + " Platform-safe staging: everyone is fully clothed and separated by clear space; "
+        "use a public-place memory, abstract shadows, and Eiji's distressed reaction only; "
+        "no physical contact, no private setting, no suggestive acting, and no recognizable vocalization."
+    )
+
+
+def provider_safe_camera(beat: dict) -> str:
+    """Use neutral camera directions for sensitive memory beats."""
+    scene_id = text(beat.get("source_scene_id"))
+    if scene_id == "p017-s02":
+        return "Slow pan across the distant pair, then settle on Eiji's distressed reaction"
+    if scene_id == "p017-s04":
+        return "Subtle camera drift across abstract shadow shapes, then a restrained push toward Eiji's reaction"
+    return sanitize_flow_action(text(beat.get("camera")))
+
+
+def provider_script_cue(beat: dict) -> str:
+    """Keep canonical text in the ledger while redacting one provider-unsafe cue."""
+    scene_id = text(beat.get("source_scene_id"))
+    speaker = text(beat.get("speaker")) or "Unidentified speaker"
+    if scene_id == "p017-s02":
+        raw = text(beat.get("source_text") or beat.get("dialogue_text"))
+        return (
+            f'MANGA SCRIPT — Speaker: {speaker}. Delivery: (cold, dismissive). '
+            f'Exact line: "{raw}"'
+        )
+    if scene_id not in SENSITIVE_PROVIDER_SCENE_IDS:
+        return script_cue(beat)
+    scene_id = scene_id or "the canonical source scene"
+    return (
+        f"MANGA SCRIPT SAFETY REDACTION — Speaker: {speaker}. Canonical source scene {scene_id} "
+        "is preserved exactly in chapter_script.json and is intentionally not reproduced in this "
+        "provider prompt. Do not render, quote, voice, lip-sync, caption, or reenact that source "
+        "line. MANGA SCRIPT: No spoken dialogue or voiceover for this beat. Do not invent dialogue."
+    )
 
 
 def load_style_profile(chapter_dir: Path, requested: str | None = None) -> tuple[str, dict]:
@@ -269,9 +374,9 @@ def format_shot_prompt(
         header,
         f"Create one continuous full-bleed shot for the beat labelled {text(beat.get('label'))}.",
         f"Canonical source scene: {text(beat.get('source_scene_id'))} — {sanitize_flow_action(text(beat.get('scene_title')))}.",
-        f"Action and composition: {sanitize_flow_action(text(beat.get('action')))}",
-        f"Camera movement: {sanitize_flow_action(text(beat.get('camera')))}",
-        script_cue(beat),
+        f"Action and composition: {provider_safe_action(beat)}",
+        f"Camera movement: {provider_safe_camera(beat)}",
+        provider_script_cue(beat),
     ])
     if beat.get("sfx"):
         lines.append(f"Sound design suggestion: {text(beat.get('sfx'))}")
@@ -304,8 +409,8 @@ def format_continuous_prompt(
         beat_lines.append(
             f"Beat {index} ({text(beat.get('timestamp'))}) — {text(beat.get('label'))}: "
             f"Canonical source scene {text(beat.get('source_scene_id'))} ({sanitize_flow_action(text(beat.get('scene_title')))}). "
-            f"{sanitize_flow_action(text(beat.get('action')))} Camera: {sanitize_flow_action(text(beat.get('camera')))}. "
-            f"{script_cue(beat)}"
+            f"{provider_safe_action(beat)} Camera: {provider_safe_camera(beat)}. "
+            f"{provider_script_cue(beat)}"
         )
     block_target = (
         episode_context
@@ -320,7 +425,9 @@ def format_continuous_prompt(
         f"Series: {text(title)}.",
         f"Create one coherent 10-second vertical drama block, {block_target}.",
         "Maintain exact character identity, wardrobe, setting continuity, and chronological action across the beats.",
-        "Use only the exact manga script cues below. Do not invent, paraphrase, repeat, or move dialogue between beats.",
+        "Use the canonical manga cues below. Do not invent, paraphrase, repeat, or move source dialogue. "
+        "When a safety-redaction cue is explicitly marked, follow its non-verbal provider-safe staging "
+        "and keep the exact source text in the canonical ledger.",
         *beat_lines,
         "Use the final beat as a complete freeze frame; do not add a new action after the final pose.",
     ])
@@ -390,6 +497,7 @@ def main() -> None:
         "script_artifact": str((chapter_dir / "chapter_script.json").resolve()) if (chapter_dir / "chapter_script.json").exists() else None,
         "pacing_mode": data.get("pacing_mode", "single_episode"),
         "total_episodes": data.get("total_episodes", 1),
+        "safety_redactions": [],
         "blocks": [],
     }
 
@@ -407,6 +515,18 @@ def main() -> None:
     for block_number, block in enumerate(blocks, 1):
         ep_num = block.get("episode_number", 1)
         ep_block_num = block.get("episode_block_number", block_number)
+
+        for beat in block.get("beats") or []:
+            if is_sensitive_provider_beat(beat):
+                manifest["safety_redactions"].append({
+                    "block": block_number,
+                    "episode": ep_num,
+                    "episode_block": ep_block_num,
+                    "source_scene_id": text(beat.get("source_scene_id")),
+                    "action_sanitized": True,
+                    "script_redacted": text(beat.get("source_scene_id")) in SENSITIVE_PROVIDER_SCENE_IDS,
+                    "reason": "provider-safe adaptation; canonical source remains in chapter_script.json",
+                })
 
         # Shot prompts for root flow_queue
         shots = [

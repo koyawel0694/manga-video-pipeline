@@ -4,7 +4,7 @@ import sys
 
 sys.path.insert(0, str(Path(__file__).parents[1]))
 
-from build_block_prompts_txt import format_continuous_prompt
+from build_block_prompts_txt import format_continuous_prompt, provider_safe_action, provider_script_cue
 from build_serye_storyboard import build_storyboard
 from chapter_contract import build_script_entries, script_cue
 
@@ -57,7 +57,49 @@ class ScriptContractTests(unittest.TestCase):
         })
 
         self.assertIn(script_cue(beat), prompt)
-        self.assertIn("Do not invent, paraphrase, repeat, or move dialogue", prompt)
+        self.assertIn("Do not invent, paraphrase, repeat, or move source dialogue", prompt)
+
+    def test_provider_safe_redaction_keeps_canonical_ledger_separate(self):
+        sensitive = {
+            "source_scene_id": "p017-s04",
+            "scene_title": "Surrendering to Lust",
+            "action": "A heart-shaped speech bubble with breathless moans surrounds a silhouette.",
+            "camera": "Slow push-in.",
+            "source_text": "Yes♡ Ah... Ahn...♡ Ngh...",
+            "dialogue_text": "Yes♡ Ah... Ahn...♡ Ngh...",
+            "text_type": "spoken",
+            "speaker": "Miyuki",
+            "voice_emotion": "(breathless, lustful)",
+        }
+        action = provider_safe_action(sensitive)
+        cue = provider_script_cue(sensitive)
+
+        self.assertIn("fully clothed", action)
+        self.assertIn("public-place", action)
+        self.assertNotIn("breathless moans", action.lower())
+        self.assertNotIn("Yes♡ Ah", cue)
+        self.assertIn("MANGA SCRIPT SAFETY REDACTION", cue)
+        self.assertIn("p017-s04", cue)
+
+    def test_provider_safe_rewrite_preserves_safe_dialogue_line(self):
+        beat = {
+            "source_scene_id": "p017-s02",
+            "scene_title": "Embrace of Betrayal",
+            "action": "Miyuki embraces the blonde upperclassman while wrapped in sheets.",
+            "camera": "Pan across the embracing couple.",
+            "source_text": "Eek Senpai! EIJI'S SERIOUSLY DISGUSTING, YOU KNOW?",
+            "dialogue_text": "Eek Senpai! EIJI'S SERIOUSLY DISGUSTING, YOU KNOW?",
+            "text_type": "spoken",
+            "speaker": "Miyuki",
+            "voice_emotion": "(flirtatious, dismissive)",
+        }
+        action = provider_safe_action(beat)
+        cue = provider_script_cue(beat)
+
+        self.assertIn("fully clothed", action)
+        self.assertIn("Eek Senpai! EIJI'S SERIOUSLY DISGUSTING, YOU KNOW?", cue)
+        self.assertIn("(cold, dismissive)", cue)
+        self.assertNotIn("flirtatious", cue.lower())
 
     def test_storyboard_uses_unique_narrative_scene_ids_and_non_overlapping_pages(self):
         pages = []
