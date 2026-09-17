@@ -39,7 +39,7 @@ def parse_json(text: str) -> dict:
         return json.loads(match.group(0))
 
 
-def analyze_page(image_path: Path, page_num: int, chapter: str, prior_summary: str) -> dict:
+def analyze_page(image_path: Path, page_num: int, chapter: str, prior_summary: str, effort: str = "medium") -> dict:
     prompt = PROMPT.format(
         image_path=str(image_path),
         page_number=page_num,
@@ -49,7 +49,7 @@ def analyze_page(image_path: Path, page_num: int, chapter: str, prior_summary: s
     if prior_summary:
         prompt += "\nPrior continuity notes from already-read pages:\n" + prior_summary[-5000:]
     result = subprocess.run(
-        [AGY, "--effort", "medium", "-p", prompt],
+        [AGY, "--effort", effort, "-p", prompt],
         capture_output=True,
         text=True,
         timeout=300,
@@ -69,7 +69,9 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--chapter-dir", required=True)
     ap.add_argument("--output", default=None)
+    ap.add_argument("--effort", default="medium", choices=["low", "medium", "high"], help="Reasoning effort for agy (low, medium, high)")
     args = ap.parse_args()
+    effort = args.effort
     chapter_dir = Path(args.chapter_dir).resolve()
     output = Path(args.output) if args.output else chapter_dir / "chapter_analysis.json"
     metadata = {}
@@ -127,7 +129,7 @@ def main():
         last_error = None
         for attempt in range(1, 4):
             try:
-                page = analyze_page(image, idx, chapter, prior)
+                page = analyze_page(image, idx, chapter, prior, effort=effort)
                 pages.append(page)
                 break
             except Exception as exc:
@@ -140,7 +142,7 @@ def main():
             "title": title,
             "chapter": chapter,
             "analysis_mode": "single sequential reader",
-            "agy_effort": "medium",
+            "agy_effort": effort,
             "pages_analyzed": len(pages),
             "total_pages": len(images),
             "updated_at": time.strftime("%Y-%m-%d %H:%M:%S"),
@@ -152,7 +154,7 @@ def main():
         "title": title,
         "chapter": chapter,
         "analysis_mode": "single sequential reader",
-        "agy_effort": "medium",
+        "agy_effort": effort,
         "pages_analyzed": len(pages),
         "total_pages": len(images),
         "completed_at": time.strftime("%Y-%m-%d %H:%M:%S"),
