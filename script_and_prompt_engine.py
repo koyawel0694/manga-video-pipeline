@@ -174,6 +174,85 @@ def process_page(image_path: Path, page_num: int, chapter_num: str) -> list[dict
         }]
 
 
+def export_scenes(
+    chapter_dir: Path,
+    all_scenes: list[dict],
+    output_csv: Optional[Path],
+    manga_title: str,
+    chapter_num: str,
+) -> tuple[list[dict], Path]:
+    """Write prompt artifacts from already analyzed canonical scenes."""
+    if output_csv is None:
+        output_csv = chapter_dir / "video_prompts.csv"
+
+    fieldnames = [
+        "Scene_Number", "Chapter", "Page_File", "Character_Speaker",
+        "Dialogue_Script", "Voice_Emotion_Cue", "Action_Description",
+        "Video_Animation_Prompt", "Camera_Movement", "Visual_Style_FX",
+        "Estimated_Duration_Sec",
+    ]
+    with open(output_csv, "w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        writer.writeheader()
+        for sc in all_scenes:
+            writer.writerow({
+                "Scene_Number": sc.get("scene_number"),
+                "Chapter": sc.get("chapter"),
+                "Page_File": sc.get("page_file"),
+                "Character_Speaker": sc.get("speaker"),
+                "Dialogue_Script": sc.get("full_tts_script") or sc.get("dialogue_text"),
+                "Voice_Emotion_Cue": sc.get("voice_emotion"),
+                "Action_Description": sc.get("action_description"),
+                "Video_Animation_Prompt": sc.get("video_animation_prompt"),
+                "Camera_Movement": sc.get("camera_movement"),
+                "Visual_Style_FX": sc.get("visual_style_fx"),
+                "Estimated_Duration_Sec": sc.get("estimated_duration_sec"),
+            })
+
+    json_path = chapter_dir / "pipeline_data.json"
+    with open(json_path, "w", encoding="utf-8") as f:
+        json.dump({
+            "title": manga_title,
+            "chapter": chapter_num,
+            "total_scenes": len(all_scenes),
+            "generated_at": time.strftime("%Y-%m-%d %H:%M:%S"),
+            "scenes": all_scenes,
+        }, f, indent=2, ensure_ascii=False)
+
+    print(f"\n[COMPLETE] Generated {len(all_scenes)} scenes:")
+    print(f"  - CSV Prompts: {output_csv}")
+    print(f"  - JSON Data:   {json_path}")
+    return all_scenes, output_csv
+
+
+def export_canonical_analysis(
+    chapter_dir: Path,
+    output_csv: Optional[Path] = None,
+) -> tuple[list[dict], Path]:
+    """Flatten complete sequential analysis without rereading source pages."""
+    analysis_path = chapter_dir / "chapter_analysis.json"
+    data = json.loads(analysis_path.read_text(encoding="utf-8"))
+    if data.get("pages_analyzed") != data.get("total_pages"):
+        raise ValueError(f"Canonical analysis incomplete: {analysis_path}")
+    chapter_num = str(data.get("chapter") or chapter_dir.name.removeprefix("ch") or "1")
+    scenes = []
+    for page in data.get("pages", []):
+        for scene in page.get("scenes", []):
+            item = dict(scene)
+            item["page_file"] = page.get("page_file", item.get("page_file"))
+            item["page_number"] = page.get("page_number", item.get("page_number"))
+            item["chapter"] = chapter_num
+            item["scene_number"] = len(scenes) + 1
+            emo = str(item.get("voice_emotion") or "").strip()
+            dial = str(item.get("dialogue_text") or "").strip()
+            item["full_tts_script"] = dial if not emo or dial.startswith("(") else f"{emo} {dial}".strip()
+            scenes.append(item)
+    if not scenes:
+        raise ValueError(f"Canonical analysis has no scenes: {analysis_path}")
+    title = str(data.get("title") or "Manga Series")
+    return export_scenes(chapter_dir, scenes, output_csv, title, chapter_num)
+
+
 def process_chapter(
     chapter_dir: Path,
     output_csv: Optional[Path] = None,
@@ -296,7 +375,12 @@ def main():
 
     ch_dir = Path(args.chapter_dir)
     out_csv = Path(args.output_csv) if args.output_csv else None
-    process_chapter(ch_dir, output_csv=out_csv, max_pages=args.max_pages, start_page=args.start_page)
+    canonical = ch_dir / "chapter_analysis.json"
+    if canonical.exists() and args.max_pages is None and args.start_page == 1:
+        print(f"[CANONICAL] Exporting prompts from {canonical}; no page reread")
+        export_canonical_analysis(ch_dir, output_csv=out_csv)
+    else:
+        process_chapter(ch_dir, output_csv=out_csv, max_pages=args.max_pages, start_page=args.start_page)
 
 
 if __name__ == "__main__":

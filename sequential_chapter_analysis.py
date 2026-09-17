@@ -72,6 +72,22 @@ def main():
     args = ap.parse_args()
     chapter_dir = Path(args.chapter_dir).resolve()
     output = Path(args.output) if args.output else chapter_dir / "chapter_analysis.json"
+    metadata = {}
+    metadata_path = chapter_dir / "metadata.json"
+    if metadata_path.exists():
+        try:
+            metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError as exc:
+            raise SystemExit(f"Invalid metadata JSON: {metadata_path}: {exc}")
+    title = str(metadata.get("title") or chapter_dir.parent.name.replace("-", " ") or "Manga Series")
+    chapter_meta = metadata.get("chapter")
+    if isinstance(chapter_meta, dict):
+        chapter = str(chapter_meta.get("chapter") or "")
+    else:
+        chapter = str(chapter_meta or "")
+    if not chapter:
+        match = re.search(r"(?:^|/)ch([^/]+)$", str(chapter_dir))
+        chapter = match.group(1) if match else "1"
     images = sorted(
         list((chapter_dir / "images").glob("*.webp"))
         + list((chapter_dir / "images").glob("*.jpg"))
@@ -80,17 +96,26 @@ def main():
     )
     if not images:
         raise SystemExit("No chapter images found")
-    existing = {p["page_number"]: p for p in []}
+    existing = {}
     if output.exists():
         try:
             old = json.loads(output.read_text())
-            existing = {p["page_number"]: p for p in old.get("pages", []) if "page_number" in p}
+            same_identity = (
+                str(old.get("title") or "") == title
+                and str(old.get("chapter") or "") == chapter
+            )
+            if same_identity:
+                existing = {
+                    p["page_number"]: p
+                    for p in old.get("pages", [])
+                    if "page_number" in p and "page_file" in p
+                }
             print(f"Resuming existing canonical analysis: {len(existing)} pages")
         except Exception:
             pass
     pages = []
     for idx, image in enumerate(images, 1):
-        if idx in existing:
+        if idx in existing and existing[idx].get("page_file") == image.name:
             pages.append(existing[idx])
             print(f"[SKIP] Page {idx}/{len(images)} already analyzed")
             continue
@@ -102,7 +127,7 @@ def main():
         last_error = None
         for attempt in range(1, 4):
             try:
-                page = analyze_page(image, idx, "1", prior)
+                page = analyze_page(image, idx, chapter, prior)
                 pages.append(page)
                 break
             except Exception as exc:
@@ -112,8 +137,8 @@ def main():
         else:
             raise RuntimeError(f"Page {idx} failed after retries: {last_error}")
         payload = {
-            "title": "The Investor Who Sees The Future",
-            "chapter": "1",
+            "title": title,
+            "chapter": chapter,
             "analysis_mode": "single sequential reader",
             "agy_effort": "medium",
             "pages_analyzed": len(pages),
@@ -124,8 +149,8 @@ def main():
         output.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
         print(f"[SAVED] {len(pages)}/{len(images)} pages", flush=True)
     payload = {
-        "title": "The Investor Who Sees The Future",
-        "chapter": "1",
+        "title": title,
+        "chapter": chapter,
         "analysis_mode": "single sequential reader",
         "agy_effort": "medium",
         "pages_analyzed": len(pages),
