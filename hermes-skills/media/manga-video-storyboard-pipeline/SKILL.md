@@ -55,6 +55,8 @@ output/<series-slug>/ch<chapter>/
   style_selection.json
   character_refs/
     <character_slug>_ref.png              # 768x1376 9:16 PNG model sheets matching style preset
+    <character_slug>_prompt.txt           # per-character generation prompt for Flow / Nano Banana / Kling
+    character_prompts.txt                 # combined character image prompts separated by @@@NEXT@@@
   character_refs_source.json              # Provenance manifest (reused for Ch2+)
   storyboard_9_16.json                    # Canonical storyboard metadata (6 beats/block)
   storyboard_9_16.md / .html              # Production documentation
@@ -128,11 +130,12 @@ python3 sequential_chapter_analysis.py --chapter-dir output/<slug>/ch<N> --effor
 Output: `chapter_analysis.json` containing exact dialogue, parenthesized vocal emotion tags `(emotion, tone)`, scene action, camera movement, and visual FX.
 Each scene must also carry `text_type` when known (`spoken`, `narration`, `thought`, `sfx`, `caption`, or `unknown`). Preserve `dialogue_text` exactly; classify sound effects as `sfx` so they are not sent to spoken TTS. Downstream stages generate `chapter_script.json`, `.txt`, and `.md` directly from this analysis—never from a second model pass.
 
-### Stage 3: Character Reference Model Sheets Matching Selected Style
-- For Chapter 1 (or Ch 0): Create 9:16 vertical PNG model sheets (`768x1376`) for recurring characters:
+### Stage 3: Character Reference Model Sheets & Image Prompts Matching Selected Style
+- For Chapter 1 (or Ch 0): Create 9:16 vertical PNG model sheets (`768x1376`) for recurring characters along with their text generation prompts:
   ```bash
   python3 generate_nano_storyboards.py --chapter-dir output/<slug>/ch1 --characters --style-preset <SELECTED_PRESET>
   ```
+  - **Character Image Prompts**: Automatically generates `<character_slug>_prompt.txt` per character and a combined `character_prompts.txt` with `@@@NEXT@@@` delimiter containing complete design lock, style directives, negative constraints, and layout composition for direct copy-paste into Google Flow / Nano Banana / Kling.
   - **Style Preset Enforcement**: The generated sheet MUST match the selected art style!
     - When `photorealistic_live_action` is selected: Model sheets MUST portray real human actors with visible skin pores, natural hair strands, physically tailored costumes, 85mm portrait lens on a neutral off-white studio backdrop (`#F4F4F4`), with 4 consistent turnaround views (front full-body, 3/4 portrait, side profile, dynamic action pose). NEVER paste 2D comic panels into a live-action reference sheet!
     - When `webtoon_2d` or `anime_sakuga_2d` is selected: Use authentic 2D anime/webtoon turnaround art.

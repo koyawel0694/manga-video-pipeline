@@ -11,10 +11,14 @@ Character reference sheets act as permanent identity anchors for the series. Gen
 
 ## 2. File Specifications
 - **Directory**: `output/<series-slug>/ch<chapter>/character_refs/`
-- **File Naming**: `<character_slug>_ref.png` (e.g. `han_jue_ref.png`, `fairy_xixuan_ref.png`, `kang_jin_hoo_ref.png`).
-- **Format**: PNG image.
-- **Dimensions**: Vertical portrait 9:16 aspect ratio (exactly `768x1376` pixels).
-- **Background**: Solid neutral studio / model-sheet backdrop (`#F4F4F4` light off-white).
+- **Reference Image**: `<character_slug>_ref.png` (e.g. `eiji_aono_ref.png`, `ai_ichijou_ref.png`, `kang_jin_hoo_ref.png`).
+  - **Format**: PNG image.
+  - **Dimensions**: Vertical portrait 9:16 aspect ratio (exactly `768x1376` pixels).
+  - **Background**: Solid neutral studio / model-sheet backdrop (`#F4F4F4` light off-white).
+- **Character Image Prompts**:
+  - **Per-Character Prompt File**: `<character_slug>_prompt.txt` containing the full generation prompt (casting lock, style directives, negative constraints, 4-view layout composition, and output path) for direct copy-paste into Google Flow, Nano Banana Pro, or Kling.
+  - **Combined Character Prompts File**: `character_prompts.txt` combining all character image prompts separated by `\n\n@@@NEXT@@@\n\n`.
+- **Provenance Manifest**: `character_refs_source.json` linking all reference PNGs, prompt files, and the combined prompt file.
 
 ## 3. Layout Structure (Multi-Angle Model Sheet)
 Each character sheet follows a standardized multi-angle model turnaround layout:

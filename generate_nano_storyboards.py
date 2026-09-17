@@ -125,9 +125,13 @@ def write_reference_manifest(
     metadata_path = chapter_dir / "metadata.json"
     if metadata_path.exists():
         metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+    prompt_files = sorted(str(p.resolve()) for p in reference_dir.glob("*_prompt.txt"))
+    combined = reference_dir / "character_prompts.txt"
     manifest.write_text(json.dumps({
         "source_dir": str(reference_dir.resolve()),
         "files": [str(path.resolve()) for path in validate_reference_dir(reference_dir)],
+        "prompt_files": prompt_files,
+        "combined_prompts_file": str(combined.resolve()) if combined.exists() else None,
         "reused": reused,
         "series": metadata.get("series_slug") or metadata.get("title"),
         "chapter": str((metadata.get("chapter") or {}).get("chapter", metadata.get("chapter", "")))
@@ -301,12 +305,19 @@ def main():
 
     if (args.characters or args.all) and not args.reference_dir:
         active_characters = load_characters(base, args.characters_file)
+        all_char_prompts = []
         for slug, name, details in active_characters:
             out = ref_dir / f"{slug}_ref.png"
+            prompt_text = make_character_prompt(name, details, out, profile)
+            prompt_file = ref_dir / f"{slug}_prompt.txt"
+            prompt_file.write_text(prompt_text, encoding="utf-8")
+            all_char_prompts.append(prompt_text.strip())
             print(f"[CHARACTER] {name} -> {out} [{selected_style}]", flush=True)
-            run(make_character_prompt(name, details, out, profile))
+            run(prompt_text)
             validate_reference_dir(ref_dir)
             print("[OK]", flush=True)
+        combined_prompts_file = ref_dir / "character_prompts.txt"
+        combined_prompts_file.write_text("\n\n@@@NEXT@@@\n\n".join(all_char_prompts) + "\n", encoding="utf-8")
         write_reference_manifest(ref_dir, base, reused=False, style_preset=selected_style)
     elif args.reference_dir:
         print(f"[CHARACTER] Reusing existing refs from {ref_dir}", flush=True)

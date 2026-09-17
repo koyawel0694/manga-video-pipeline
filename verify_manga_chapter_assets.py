@@ -182,6 +182,12 @@ def check_refs(chapter_dir: Path, errors: list[str]) -> None:
         for listed in source_manifest.get("files") or []:
             if not Path(listed).exists():
                 fail(errors, f"character_refs_source.json points to missing reference: {listed}")
+        for prompt_path in source_manifest.get("prompt_files") or []:
+            if not Path(prompt_path).exists():
+                fail(errors, f"character_refs_source.json points to missing prompt file: {prompt_path}")
+        combined = source_manifest.get("combined_prompts_file")
+        if combined and not Path(combined).exists():
+            fail(errors, f"character_refs_source.json points to missing combined prompt file: {combined}")
 
 
 def check_style(chapter_dir: Path, errors: list[str]) -> None:
